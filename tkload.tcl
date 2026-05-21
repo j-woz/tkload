@@ -4,8 +4,8 @@
 
 package require Tk
 
-set ::width 300
-set ::height 340
+set ::width 700
+set ::height 375
 set ::graph_data {}
 set ::max_time 3600
 set ::update_interval 1000
@@ -13,6 +13,9 @@ set ::start_time [clock seconds]
 set ::show_1m 1
 set ::show_5m 1
 set ::show_15m 1
+# Exponent applied to the log time scale; >1 pushes recent times farther right.
+# TODO: expose as a configuration parameter.
+set ::time_scale_exp 2.0
 
 # Get current load average from /proc/loadavg
 proc get_load {} {
@@ -59,7 +62,10 @@ proc draw_graph {load1 load5 load15} {
   set w [winfo width $c]
   set h [winfo height $c]
   set pad 30
+  set left_pad 60
   set bottom_pad 60
+  set menu_h 40
+  set top_pad [expr {$pad + $menu_h}]
 
   # Draw background
   $c create rect 0 0 $w $h -fill white
@@ -68,27 +74,27 @@ proc draw_graph {load1 load5 load15} {
   set max_load 4.0
 
   # Horizontal grid lines
-  set plot_height [expr {$h - $pad - $bottom_pad}]
+  set plot_height [expr {$h - $top_pad - $bottom_pad}]
   for {set i 0} {$i <= 4} {incr i} {
     set y [expr {$h - $bottom_pad - ($i * $plot_height / 4)}]
-    $c create line $pad $y $w $y -fill lightgray -dash {2 2}
-    $c create text [expr {$pad - 5}] $y -text "$i.0" -anchor e -font "TkDefaultFont 8"
+    $c create line $left_pad $y $w $y -fill lightgray -dash {2 2}
+    $c create text [expr {$left_pad - 5}] $y -text "$i.0" -anchor e -font "TkDefaultFont 16"
   }
 
   # Draw axes
-  $c create line $pad $pad $pad [expr {$h - $bottom_pad}] -fill black -width 2
-  $c create line $pad [expr {$h - $bottom_pad}] $w [expr {$h - $bottom_pad}] -fill black -width 2
+  $c create line $left_pad $top_pad $left_pad [expr {$h - $bottom_pad}] -fill black -width 2
+  $c create line $left_pad [expr {$h - $bottom_pad}] $w [expr {$h - $bottom_pad}] -fill black -width 2
 
   set now [clock seconds]
   set scale [expr {$plot_height / $max_load}]
 
   # Convert time to log scale x position
-  proc time_to_x {time_ago w pad} {
+  proc time_to_x {time_ago w pad left_pad} {
     if {$time_ago <= 0} {
       return [expr {$w - $pad}]
     }
-    set log_scale [expr {log($time_ago + 1) / log(3601.0)}]
-    return [expr {$pad + (($w - 2*$pad) * (1.0 - $log_scale))}]
+    set log_scale [expr {pow(log($time_ago + 1) / log(3601.0), $::time_scale_exp)}]
+    return [expr {$left_pad + (($w - $pad - $left_pad) * (1.0 - $log_scale))}]
   }
 
   # Draw x-axis labels (positioned to avoid legend)
@@ -96,9 +102,9 @@ proc draw_graph {load1 load5 load15} {
   set label_names {"1m ago" "5m ago" "1h ago"}
 
   foreach time $label_times name $label_names {
-    set x [time_to_x $time $w $pad]
+    set x [time_to_x $time $w $pad $left_pad]
     $c create line $x [expr {$h - $bottom_pad}] $x [expr {$h - $bottom_pad + 5}] -fill black
-    $c create text $x [expr {$h - $bottom_pad + 20}] -text $name -anchor n -font "TkDefaultFont 7"
+    $c create text $x [expr {$h - $bottom_pad + 20}] -text $name -anchor n -font "TkDefaultFont 14"
   }
 
   # Draw load line graphs for 1m, 5m, 15m
@@ -115,7 +121,7 @@ proc draw_graph {load1 load5 load15} {
     set load5_val [lindex $point 2]
     set load15_val [lindex $point 3]
     set time_ago [expr {$now - $timestamp}]
-    set x [time_to_x $time_ago $w $pad]
+    set x [time_to_x $time_ago $w $pad $left_pad]
 
     # 1-minute load (red)
     if {$::show_1m} {
@@ -161,29 +167,55 @@ proc draw_graph {load1 load5 load15} {
   $c create oval [expr {$x_now - 5}] [expr {$y15 - 3}] [expr {$x_now + 5}] [expr {$y15 + 3}] \
     -fill blue -outline blue
 
-  # Draw labels
-  $c create text 10 10 -text "Load: 1m:$load1  5m:$load5  15m:$load15" \
-    -anchor nw -font "TkDefaultFont 10 bold"
+  # Menu area background
+  $c create rect 0 0 $w $menu_h -fill #eeeeee -outline ""
+  $c create line 0 $menu_h $w $menu_h -fill gray
 
-  # Draw legend with clickable rectangles at the top
-  set legend_x [expr {$w - 120}]
-  set legend_y 30
+  # Draw labels in menu area
+  $c create text 10 [expr {$menu_h/2}] -text "Load: 15m:$load15  5m:$load5  1m:$load1" \
+    -anchor w -font "TkDefaultFont 16 bold"
 
-  # Draw rectangles around legend items (white fill for clickability)
-  set rect1 [$c create rect [expr {$legend_x - 55}] [expr {$legend_y - 10}] \
-    [expr {$legend_x - 25}] [expr {$legend_y + 10}] -fill white -outline black -width 1]
-  set text1 [$c create text [expr {$legend_x - 40}] $legend_y -text "R:1m" \
-    -anchor center -font "TkDefaultFont 8" -fill black]
+  # Draw legend with clickable rectangles in menu area
+  set legend_font "TkDefaultFont 16"
+  set legend_pad 6
+  set legend_y [expr {$menu_h/2}]
 
-  set rect5 [$c create rect [expr {$legend_x - 20}] [expr {$legend_y - 10}] \
-    [expr {$legend_x + 10}] [expr {$legend_y + 10}] -fill white -outline black -width 1]
-  set text5 [$c create text [expr {$legend_x - 5}] $legend_y -text "G:5m" \
-    -anchor center -font "TkDefaultFont 8" -fill black]
+  # Create text first to measure, then size rectangles around them
+  set tmp1 [$c create text 0 0 -text "R:1m" -anchor center -font $legend_font]
+  set tmp5 [$c create text 0 0 -text "G:5m" -anchor center -font $legend_font]
+  set tmp15 [$c create text 0 0 -text "B:15m" -anchor center -font $legend_font]
+  set bb1 [$c bbox $tmp1]
+  set bb5 [$c bbox $tmp5]
+  set bb15 [$c bbox $tmp15]
+  $c delete $tmp1 $tmp5 $tmp15
 
-  set rect15 [$c create rect [expr {$legend_x + 15}] [expr {$legend_y - 10}] \
-    [expr {$legend_x + 45}] [expr {$legend_y + 10}] -fill white -outline black -width 1]
-  set text15 [$c create text [expr {$legend_x + 30}] $legend_y -text "B:15m" \
-    -anchor center -font "TkDefaultFont 8" -fill black]
+  set w1 [expr {[lindex $bb1 2] - [lindex $bb1 0] + 2*$legend_pad}]
+  set w5 [expr {[lindex $bb5 2] - [lindex $bb5 0] + 2*$legend_pad}]
+  set w15 [expr {[lindex $bb15 2] - [lindex $bb15 0] + 2*$legend_pad}]
+  set rect_h [expr {[lindex $bb1 3] - [lindex $bb1 1] + 2*$legend_pad}]
+  set gap 5
+
+  set total [expr {$w1 + $w5 + $w15 + 2*$gap}]
+  set x15_left [expr {$w - 10 - $total}]
+  set x5_left [expr {$x15_left + $w15 + $gap}]
+  set x1_left [expr {$x5_left + $w5 + $gap}]
+  set y_top [expr {$legend_y - $rect_h/2}]
+  set y_bot [expr {$legend_y + $rect_h/2}]
+
+  set rect1 [$c create rect $x1_left $y_top [expr {$x1_left + $w1}] $y_bot \
+    -fill white -outline black -width 1]
+  set text1 [$c create text [expr {$x1_left + $w1/2}] $legend_y -text "R:1m" \
+    -anchor center -font $legend_font -fill black]
+
+  set rect5 [$c create rect $x5_left $y_top [expr {$x5_left + $w5}] $y_bot \
+    -fill white -outline black -width 1]
+  set text5 [$c create text [expr {$x5_left + $w5/2}] $legend_y -text "G:5m" \
+    -anchor center -font $legend_font -fill black]
+
+  set rect15 [$c create rect $x15_left $y_top [expr {$x15_left + $w15}] $y_bot \
+    -fill white -outline black -width 1]
+  set text15 [$c create text [expr {$x15_left + $w15/2}] $legend_y -text "B:15m" \
+    -anchor center -font $legend_font -fill black]
 
   # Change border color and text color if curves are hidden
   if {!$::show_1m} {
