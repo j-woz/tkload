@@ -304,6 +304,8 @@ bind . <Configure> {
   draw_graph [lindex [get_load] 0] [lindex [get_load] 1] [lindex [get_load] 2]
 }
 
+bind . <Key-q> {exit}
+
 # Start updating
 update_graph
 
