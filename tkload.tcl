@@ -98,8 +98,8 @@ proc draw_graph {load1 load5 load15} {
   }
 
   # Draw x-axis labels (positioned to avoid legend)
-  set label_times {60 300 3600}
-  set label_names {"1m ago" "5m ago" "1h ago"}
+  set label_times {60 300 900 3600}
+  set label_names {"1m ago" "5m ago" "15m ago" "1h ago"}
 
   foreach time $label_times name $label_names {
     set x [time_to_x $time $w $pad $left_pad]
