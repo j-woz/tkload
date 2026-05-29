@@ -1,6 +1,6 @@
 #!/usr/bin/env wish
 
-# tload - Tcl/Tk clone of xload system load monitor for Linux
+# tkload - Tcl/Tk clone of xload system load monitor for Linux
 
 package require Tk
 
@@ -247,7 +247,7 @@ proc draw_graph {load1 load5 load15} {
 }
 
 # Create main window
-wm title . "tload"
+wm title . "tkload"
 wm geometry . "${::width}x${::height}"
 
 # Create canvas
