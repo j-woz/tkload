@@ -70,15 +70,25 @@ proc draw_graph {load1 load5 load15} {
   # Draw background
   $c create rect 0 0 $w $h -fill white
 
-  # Draw scale and grid
-  set max_load 4.0
+  # Draw scale and grid - compute max from visible data
+  set max_load 1.0
+  foreach point $::graph_data {
+    if {$::show_1m && [lindex $point 1] > $max_load} {set max_load [lindex $point 1]}
+    if {$::show_5m && [lindex $point 2] > $max_load} {set max_load [lindex $point 2]}
+    if {$::show_15m && [lindex $point 3] > $max_load} {set max_load [lindex $point 3]}
+  }
+  # Round up to a nice value
+  set max_load [expr {ceil($max_load * 1.1)}]
+  if {$max_load < 1.0} {set max_load 1.0}
 
   # Horizontal grid lines
   set plot_height [expr {$h - $top_pad - $bottom_pad}]
-  for {set i 0} {$i <= 4} {incr i} {
-    set y [expr {$h - $bottom_pad - ($i * $plot_height / 4)}]
+  set n_lines 4
+  for {set i 0} {$i <= $n_lines} {incr i} {
+    set y [expr {$h - $bottom_pad - ($i * $plot_height / $n_lines)}]
+    set val [expr {$i * $max_load / $n_lines}]
     $c create line $left_pad $y $w $y -fill lightgray -dash {2 2}
-    $c create text [expr {$left_pad - 5}] $y -text "$i.0" -anchor e -font "TkDefaultFont 16"
+    $c create text [expr {$left_pad - 5}] $y -text [format "%.1f" $val] -anchor e -font "TkDefaultFont 16"
   }
 
   # Draw axes
