@@ -103,7 +103,7 @@ proc draw_graph {load1 load5 load15} {
     if {$time_ago <= 0} {
       return [expr {$w - $pad}]
     }
-    set log_scale [expr {pow(log($time_ago + 1) / log(3601.0), $::time_scale_exp)}]
+    set log_scale [expr {pow(log($time_ago + 1) / log($::max_time + 1.0), $::time_scale_exp)}]
     return [expr {$left_pad + (($w - $pad - $left_pad) * (1.0 - $log_scale))}]
   }
 
@@ -315,6 +315,39 @@ bind . <Configure> {
 }
 
 bind . <Key-q> {exit}
+
+proc show_config {} {
+  set t .config
+  if {[winfo exists $t]} {
+    wm deiconify $t
+    raise $t
+    return
+  }
+  toplevel $t
+  wm title $t "Configuration"
+  wm transient $t .
+
+  label $t.l_range -text "X-axis range (hours):" -anchor w
+  entry $t.e_range -width 10
+  $t.e_range insert 0 [expr {$::max_time / 3600.0}]
+
+  grid $t.l_range -row 0 -column 0 -sticky w -padx 8 -pady 6
+  grid $t.e_range -row 0 -column 1 -sticky w -padx 8 -pady 6
+
+  frame $t.btns
+  button $t.btns.ok -text "OK" -command {
+    set v [.config.e_range get]
+    if {[string is double -strict $v] && $v > 0} {
+      set ::max_time [expr {int($v * 3600)}]
+    }
+    destroy .config
+  }
+  button $t.btns.cancel -text "Cancel" -command {destroy .config}
+  pack $t.btns.ok $t.btns.cancel -side left -padx 4
+  grid $t.btns -row 1 -column 0 -columnspan 2 -pady 8
+}
+
+bind .canvas <Button-3> {show_config}
 
 # Start updating
 update_graph
