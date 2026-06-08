@@ -16,6 +16,7 @@ set ::show_15m 1
 # Exponent applied to the log time scale; >1 pushes recent times farther right.
 # TODO: expose as a configuration parameter.
 set ::time_scale_exp 2.0
+set ::font_size 16
 
 # Get current load average from /proc/loadavg
 proc get_load {} {
@@ -88,7 +89,7 @@ proc draw_graph {load1 load5 load15} {
     set y [expr {$h - $bottom_pad - ($i * $plot_height / $n_lines)}]
     set val [expr {$i * $max_load / $n_lines}]
     $c create line $left_pad $y $w $y -fill lightgray -dash {2 2}
-    $c create text [expr {$left_pad - 5}] $y -text [format "%.1f" $val] -anchor e -font "TkDefaultFont 16"
+    $c create text [expr {$left_pad - 5}] $y -text [format "%.1f" $val] -anchor e -font "TkDefaultFont $::font_size"
   }
 
   # Draw axes
@@ -114,7 +115,7 @@ proc draw_graph {load1 load5 load15} {
   foreach time $label_times name $label_names {
     set x [time_to_x $time $w $pad $left_pad]
     $c create line $x [expr {$h - $bottom_pad}] $x [expr {$h - $bottom_pad + 5}] -fill black
-    $c create text $x [expr {$h - $bottom_pad + 20}] -text $name -anchor n -font "TkDefaultFont 14"
+    $c create text $x [expr {$h - $bottom_pad + 20}] -text $name -anchor n -font "TkDefaultFont [expr {$::font_size - 2}]"
   }
 
   # Draw load line graphs for 1m, 5m, 15m
@@ -183,10 +184,10 @@ proc draw_graph {load1 load5 load15} {
 
   # Draw labels in menu area
   $c create text 10 [expr {$menu_h/2}] -text "Load: 15m:$load15  5m:$load5  1m:$load1" \
-    -anchor w -font "TkDefaultFont 16 bold"
+    -anchor w -font "TkDefaultFont $::font_size bold"
 
   # Draw legend with clickable rectangles in menu area
-  set legend_font "TkDefaultFont 16"
+  set legend_font "TkDefaultFont $::font_size"
   set legend_pad 6
   set legend_y [expr {$menu_h/2}]
 
@@ -334,17 +335,28 @@ proc show_config {} {
   grid $t.l_range -row 0 -column 0 -sticky w -padx 8 -pady 6
   grid $t.e_range -row 0 -column 1 -sticky w -padx 8 -pady 6
 
+  label $t.l_font -text "Font size:" -anchor w
+  ttk::combobox $t.c_font -width 8 -state readonly \
+    -values {8 9 10 11 12 13 14 15 16 17 18 19 20}
+  $t.c_font set $::font_size
+  grid $t.l_font -row 1 -column 0 -sticky w -padx 8 -pady 6
+  grid $t.c_font -row 1 -column 1 -sticky w -padx 8 -pady 6
+
   frame $t.btns
   button $t.btns.ok -text "OK" -command {
     set v [.config.e_range get]
     if {[string is double -strict $v] && $v > 0} {
       set ::max_time [expr {int($v * 3600)}]
     }
+    set fs [.config.c_font get]
+    if {[string is integer -strict $fs] && $fs >= 8 && $fs <= 20} {
+      set ::font_size $fs
+    }
     destroy .config
   }
   button $t.btns.cancel -text "Cancel" -command {destroy .config}
   pack $t.btns.ok $t.btns.cancel -side left -padx 4
-  grid $t.btns -row 1 -column 0 -columnspan 2 -pady 8
+  grid $t.btns -row 2 -column 0 -columnspan 2 -pady 8
 }
 
 bind .canvas <Button-3> {show_config}
