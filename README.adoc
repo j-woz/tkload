@@ -53,6 +53,7 @@ Recognized keys:
 
 | `max_time`        | seconds | X-axis range (history window length)
 | `font_size`       | 8–20    | Font size used for all on-canvas text
+| `font_family`     | string  | Font family name (e.g. `Helvetica`, `Courier`)
 | `update_interval` | seconds | How often load is sampled and redrawn (float)
 | `time_scale_exp`  | float   | Log-time exponent; >1 stretches recent times right
 | `show_1m`         | 0/1     | Whether the 1-minute load curve is drawn
@@ -83,6 +84,7 @@ any):
 
 * *X-axis range (hours)* — entered in hours; stored as `max_time`
   seconds.
+* *Font family* — dropdown of system font families.
 * *Font size* — dropdown, 8 through 20.
 * *Update interval (ms)* — how often load is sampled and the graph is
   redrawn. Takes effect on the next tick.

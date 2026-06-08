@@ -17,6 +17,7 @@ set ::show_15m 1
 # TODO: expose as a configuration parameter.
 set ::time_scale_exp 2.0
 set ::font_size 16
+set ::font_family "Helvetica"
 
 # Assign argv to given names
 # A: Associative-array: map option to value
@@ -105,7 +106,7 @@ proc load_rc {} {
   lappend candidates [file join $::env(HOME) .config tkload settings.cfg]
   lappend candidates [file join $::env(HOME) .tkloadrc]
 
-  set valid {max_time font_size update_interval time_scale_exp \
+  set valid {max_time font_size font_family update_interval time_scale_exp \
              show_1m show_5m show_15m width height}
 
   foreach path $candidates {
@@ -225,7 +226,7 @@ proc draw_graph {load1 load5 load15} {
     set y [expr {$h - $bottom_pad - ($i * $plot_height / $n_lines)}]
     set val [expr {$i * $max_load / $n_lines}]
     $c create line $left_pad $y $w $y -fill lightgray -dash {2 2}
-    $c create text [expr {$left_pad - 5}] $y -text [format "%.1f" $val] -anchor e -font "TkDefaultFont $::font_size"
+    $c create text [expr {$left_pad - 5}] $y -text [format "%.1f" $val] -anchor e -font [list $::font_family $::font_size]
   }
 
   # Draw axes
@@ -251,7 +252,7 @@ proc draw_graph {load1 load5 load15} {
   foreach time $label_times name $label_names {
     set x [time_to_x $time $w $pad $left_pad]
     $c create line $x [expr {$h - $bottom_pad}] $x [expr {$h - $bottom_pad + 5}] -fill black
-    $c create text $x [expr {$h - $bottom_pad + 20}] -text $name -anchor n -font "TkDefaultFont [expr {$::font_size - 2}]"
+    $c create text $x [expr {$h - $bottom_pad + 20}] -text $name -anchor n -font [list $::font_family [expr {$::font_size - 2}]]
   }
 
   # Draw load line graphs for 1m, 5m, 15m
@@ -320,10 +321,10 @@ proc draw_graph {load1 load5 load15} {
 
   # Draw labels in menu area
   $c create text 10 [expr {$menu_h/2}] -text "Load: 15m:$load15  5m:$load5  1m:$load1" \
-    -anchor w -font "TkDefaultFont $::font_size bold"
+    -anchor w -font [list $::font_family $::font_size bold]
 
   # Draw legend with clickable rectangles in menu area
-  set legend_font "TkDefaultFont $::font_size"
+  set legend_font [list $::font_family $::font_size]
   set legend_pad 6
   set legend_y [expr {$menu_h/2}]
 
@@ -471,18 +472,25 @@ proc show_config {} {
   grid $t.l_range -row 0 -column 0 -sticky w -padx 8 -pady 6
   grid $t.e_range -row 0 -column 1 -sticky w -padx 8 -pady 6
 
+  label $t.l_family -text "Font family:" -anchor w
+  ttk::combobox $t.c_family -width 24 -state readonly \
+    -values [lsort -dictionary [font families]]
+  $t.c_family set $::font_family
+  grid $t.l_family -row 1 -column 0 -sticky w -padx 8 -pady 6
+  grid $t.c_family -row 1 -column 1 -sticky w -padx 8 -pady 6
+
   label $t.l_font -text "Font size:" -anchor w
   ttk::combobox $t.c_font -width 8 -state readonly \
     -values {8 9 10 11 12 13 14 15 16 17 18 19 20}
   $t.c_font set $::font_size
-  grid $t.l_font -row 1 -column 0 -sticky w -padx 8 -pady 6
-  grid $t.c_font -row 1 -column 1 -sticky w -padx 8 -pady 6
+  grid $t.l_font -row 2 -column 0 -sticky w -padx 8 -pady 6
+  grid $t.c_font -row 2 -column 1 -sticky w -padx 8 -pady 6
 
   label $t.l_interval -text "Update interval (seconds):" -anchor w
   entry $t.e_interval -width 10
   $t.e_interval insert 0 [expr {$::update_interval / 1000.0}]
-  grid $t.l_interval -row 2 -column 0 -sticky w -padx 8 -pady 6
-  grid $t.e_interval -row 2 -column 1 -sticky w -padx 8 -pady 6
+  grid $t.l_interval -row 3 -column 0 -sticky w -padx 8 -pady 6
+  grid $t.e_interval -row 3 -column 1 -sticky w -padx 8 -pady 6
 
   label $t.l_curves -text "Curves shown:" -anchor w
   frame $t.f_curves
@@ -493,8 +501,8 @@ proc show_config {} {
   checkbutton $t.f_curves.c5 -text "5m" -variable ::cfg_show_5m
   checkbutton $t.f_curves.c15 -text "15m" -variable ::cfg_show_15m
   pack $t.f_curves.c1 $t.f_curves.c5 $t.f_curves.c15 -side left
-  grid $t.l_curves -row 3 -column 0 -sticky w -padx 8 -pady 6
-  grid $t.f_curves -row 3 -column 1 -sticky w -padx 8 -pady 6
+  grid $t.l_curves -row 4 -column 0 -sticky w -padx 8 -pady 6
+  grid $t.f_curves -row 4 -column 1 -sticky w -padx 8 -pady 6
 
   frame $t.btns
   button $t.btns.ok -text "OK" -command {
@@ -505,6 +513,10 @@ proc show_config {} {
     set fs [.config.c_font get]
     if {[string is integer -strict $fs] && $fs >= 8 && $fs <= 20} {
       set ::font_size $fs
+    }
+    set ff [.config.c_family get]
+    if {$ff ne ""} {
+      set ::font_family $ff
     }
     set iv [.config.e_interval get]
     if {[string is double -strict $iv] && $iv > 0} {
@@ -519,7 +531,7 @@ proc show_config {} {
   button $t.btns.save   -text "Save"   -command {save_config_dialog}
   button $t.btns.load   -text "Load"   -command {load_config_dialog}
   pack $t.btns.ok $t.btns.cancel $t.btns.save $t.btns.load -side left -padx 4
-  grid $t.btns -row 4 -column 0 -columnspan 2 -pady 8
+  grid $t.btns -row 5 -column 0 -columnspan 2 -pady 8
 }
 
 proc save_config_dialog {} {
@@ -539,6 +551,10 @@ proc save_config_dialog {} {
   }
   if {[string is integer -strict $fs] && $fs >= 8 && $fs <= 20} {
     puts $f "font_size=$fs"
+  }
+  set ff [.config.c_family get]
+  if {$ff ne ""} {
+    puts $f "font_family=$ff"
   }
   set iv [.config.e_interval get]
   if {[string is double -strict $iv] && $iv > 0} {
@@ -577,6 +593,9 @@ proc load_config_dialog {} {
   if {[info exists vals(font_size)] && [string is integer -strict $vals(font_size)] \
       && $vals(font_size) >= 8 && $vals(font_size) <= 20} {
     .config.c_font set $vals(font_size)
+  }
+  if {[info exists vals(font_family)] && $vals(font_family) ne ""} {
+    .config.c_family set $vals(font_family)
   }
   if {[info exists vals(update_interval)] && [string is double -strict $vals(update_interval)] \
       && $vals(update_interval) > 0} {
