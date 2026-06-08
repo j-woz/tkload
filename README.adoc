@@ -1,2 +1,108 @@
-# tkload
+= tkload
 An xload clone with more features but the same compact feel
+
+== Settings
+
+tkload reads an optional settings file at startup. Settings can also be
+edited interactively from the configuration dialog (right-click anywhere
+on the main canvas).
+
+=== Search path
+
+The first readable file found is loaded; later locations are ignored.
+The search order is:
+
+. `-s <path>` command-line option (if given)
+. `$TKLOADRC` (if set)
+. `$XDG_CONFIG_HOME/tkload/settings.cfg` (if `XDG_CONFIG_HOME` is set)
+. `~/.config/tkload/settings.cfg`
+. `~/.tkloadrc`
+
+To load a specific file via the command line:
+
+[source,sh]
+----
+./tkload.tcl -s /path/to/my.cfg
+----
+
+To use a specific file for a single run:
+
+[source,sh]
+----
+TKLOADRC=/path/to/my.cfg ./tkload.tcl
+----
+
+To make a persistent per-user config:
+
+[source,sh]
+----
+mkdir -p ~/.config/tkload
+$EDITOR ~/.config/tkload/settings.cfg
+----
+
+=== File format
+
+One `key=value` per line. Blank lines and lines beginning with `#` are
+ignored. Whitespace around the key and value is trimmed.
+
+Recognized keys:
+
+[cols="1,1,3"]
+|===
+| Key | Units | Description
+
+| `max_time`        | seconds | X-axis range (history window length)
+| `font_size`       | 8–20    | Font size used for all on-canvas text
+| `update_interval` | seconds | How often load is sampled and redrawn (float)
+| `time_scale_exp`  | float   | Log-time exponent; >1 stretches recent times right
+| `show_1m`         | 0/1     | Whether the 1-minute load curve is drawn
+| `show_5m`         | 0/1     | Whether the 5-minute load curve is drawn
+| `show_15m`        | 0/1     | Whether the 15-minute load curve is drawn
+| `width`           | pixels  | Initial window width
+| `height`          | pixels  | Initial window height
+|===
+
+Example `settings.cfg`:
+
+[source,ini]
+----
+# 2-hour history window
+max_time=7200
+font_size=14
+update_interval=1.0
+show_1m=1
+show_5m=1
+show_15m=1
+----
+
+=== Editing from the app
+
+Right-click on the main canvas to open the configuration dialog. It
+shows the current settings (pre-populated from the loaded rc file, if
+any):
+
+* *X-axis range (hours)* — entered in hours; stored as `max_time`
+  seconds.
+* *Font size* — dropdown, 8 through 20.
+* *Update interval (ms)* — how often load is sampled and the graph is
+  redrawn. Takes effect on the next tick.
+* *Curves shown* — checkboxes for the 1m, 5m, and 15m load curves.
+  Equivalent to clicking the legend chips in the menu bar.
+
+Buttons:
+
+* *OK* — apply the edited values to the running app (not persisted).
+* *Cancel* — discard edits.
+* *Save…* — write the dialog's current values to a file you choose, in
+  the format above. Save to one of the search-path locations to have
+  them loaded next startup.
+* *Load…* — read a file you choose and populate the dialog fields with
+  its values. Click *OK* afterward to apply them.
+
+NOTE: *OK* and *Save…* are independent. *OK* only affects the running
+session; *Save…* only writes to disk. To make a change persistent, do
+both.
+
+=== Keyboard
+
+* `q` — quit

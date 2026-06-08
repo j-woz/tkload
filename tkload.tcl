@@ -18,9 +18,145 @@ set ::show_15m 1
 set ::time_scale_exp 2.0
 set ::font_size 16
 
+# Assign argv to given names
+# A: Associative-array: map option to value
+# P: Positional parameters: indexed from 0
+# opts: Options string e.g., "hc:p"
+# V: e.g., $argv
+proc getopts { A_name P_name opts V } {
+  upvar $A_name A
+  upvar $P_name P
+  upvar optind count
+  # Colons
+  array set C {}
+  _getopts_parse_opt_string C $opts
+  set i 0
+  set count 0
+  set q 0
+  set N [ llength $V ]
+  set dash_found false
+  while { $i < $N } {
+    set t [ lindex $V $i ]
+    set c [ string range $t 0 0 ]
+    if { $c eq "-" && ! $dash_found} {
+      set c [ string range $t 1 1 ]
+    } else {
+      set P($q) $t
+      incr q
+      incr i
+      continue
+    }
+    if { $c eq "-" } { # Found --
+      set dash_found true
+      incr i
+      incr count
+      continue
+    }
+    if { ! [ info exists C($c) ] } {
+      error "getopts: invalid flag: $c"
+    }
+    if { [ string equal $C($c) ":" ] } {
+      incr i
+      incr count
+      set t [ lindex $V $i ]
+      lappend A($c) $t
+    } else {
+      lappend A($c) {}
+    }
+    incr i
+    incr count
+  }
+}
+
+proc _getopts_parse_opt_string { C_name opts } {
+  upvar $C_name C
+  set i 0
+  set N [ string length $opts ]
+  while { $i < $N } {
+    set c     [ string range $opts $i $i ]
+    incr i
+    set colon [ string range $opts $i $i ]
+    if { [ string equal $colon ":" ] } {
+      set C($c) ":"
+      incr i
+    } else {
+      set C($c) "_"
+    }
+  }
+}
+
+# Find and load rc file. Searches, in order:
+#   $TKLOADRC, $XDG_CONFIG_HOME/tkload/settings.cfg,
+#   ~/.config/tkload/settings.cfg, ~/.tkloadrc
+# File format: key=value per line, '#' starts a comment. Recognized keys:
+#   max_time (seconds), font_size, update_interval (seconds, float),
+#   time_scale_exp, show_1m, show_5m, show_15m, width, height
+proc load_rc {} {
+  set candidates {}
+  if {[info exists ::opt_settings] && $::opt_settings ne ""} {
+    lappend candidates $::opt_settings
+  }
+  if {[info exists ::env(TKLOADRC)] && $::env(TKLOADRC) ne ""} {
+    lappend candidates $::env(TKLOADRC)
+  }
+  if {[info exists ::env(XDG_CONFIG_HOME)] && $::env(XDG_CONFIG_HOME) ne ""} {
+    lappend candidates [file join $::env(XDG_CONFIG_HOME) tkload settings.cfg]
+  }
+  lappend candidates [file join $::env(HOME) .config tkload settings.cfg]
+  lappend candidates [file join $::env(HOME) .tkloadrc]
+
+  set valid {max_time font_size update_interval time_scale_exp \
+             show_1m show_5m show_15m width height}
+
+  foreach path $candidates {
+    if {![file readable $path]} continue
+    try {
+      set f [open $path r]
+    } on error {} {
+      continue
+    }
+    while {[gets $f line] >= 0} {
+      set line [string trim $line]
+      if {$line eq "" || [string index $line 0] eq "#"} continue
+      set eq [string first "=" $line]
+      if {$eq < 0} continue
+      set key [string trim [string range $line 0 [expr {$eq - 1}]]]
+      set val [string trim [string range $line [expr {$eq + 1}] end]]
+      if {[lsearch -exact $valid $key] >= 0} {
+        if {$key eq "update_interval"} {
+          if {[string is double -strict $val] && $val > 0} {
+            set ::update_interval [expr {int($val * 1000)}]
+          }
+        } else {
+          set ::$key $val
+        }
+      }
+    }
+    close $f
+    return $path
+  }
+  return ""
+}
+
+array set _opts {}
+array set _pos {}
+try {
+  getopts _opts _pos "s:" $argv
+} on error {err} {
+  puts stderr "tkload: $err"
+  puts stderr "usage: tkload \[-s settings.cfg\]"
+  exit 2
+}
+if {[info exists _opts(s)]} {
+  set ::opt_settings [lindex $_opts(s) end]
+}
+load_rc
+
 # Get current load average from /proc/loadavg
 proc get_load {} {
-  if {[catch {open "/proc/loadavg" r} f]} {
+  try {
+    set f [open "/proc/loadavg" r]
+  } on error {} {
     return {0 0 0}
   }
   gets $f line
@@ -342,6 +478,24 @@ proc show_config {} {
   grid $t.l_font -row 1 -column 0 -sticky w -padx 8 -pady 6
   grid $t.c_font -row 1 -column 1 -sticky w -padx 8 -pady 6
 
+  label $t.l_interval -text "Update interval (seconds):" -anchor w
+  entry $t.e_interval -width 10
+  $t.e_interval insert 0 [expr {$::update_interval / 1000.0}]
+  grid $t.l_interval -row 2 -column 0 -sticky w -padx 8 -pady 6
+  grid $t.e_interval -row 2 -column 1 -sticky w -padx 8 -pady 6
+
+  label $t.l_curves -text "Curves shown:" -anchor w
+  frame $t.f_curves
+  set ::cfg_show_1m $::show_1m
+  set ::cfg_show_5m $::show_5m
+  set ::cfg_show_15m $::show_15m
+  checkbutton $t.f_curves.c1 -text "1m" -variable ::cfg_show_1m
+  checkbutton $t.f_curves.c5 -text "5m" -variable ::cfg_show_5m
+  checkbutton $t.f_curves.c15 -text "15m" -variable ::cfg_show_15m
+  pack $t.f_curves.c1 $t.f_curves.c5 $t.f_curves.c15 -side left
+  grid $t.l_curves -row 3 -column 0 -sticky w -padx 8 -pady 6
+  grid $t.f_curves -row 3 -column 1 -sticky w -padx 8 -pady 6
+
   frame $t.btns
   button $t.btns.ok -text "OK" -command {
     set v [.config.e_range get]
@@ -352,11 +506,88 @@ proc show_config {} {
     if {[string is integer -strict $fs] && $fs >= 8 && $fs <= 20} {
       set ::font_size $fs
     }
+    set iv [.config.e_interval get]
+    if {[string is double -strict $iv] && $iv > 0} {
+      set ::update_interval [expr {int($iv * 1000)}]
+    }
+    set ::show_1m $::cfg_show_1m
+    set ::show_5m $::cfg_show_5m
+    set ::show_15m $::cfg_show_15m
     destroy .config
   }
   button $t.btns.cancel -text "Cancel" -command {destroy .config}
-  pack $t.btns.ok $t.btns.cancel -side left -padx 4
-  grid $t.btns -row 2 -column 0 -columnspan 2 -pady 8
+  button $t.btns.save   -text "Save"   -command {save_config_dialog}
+  button $t.btns.load   -text "Load"   -command {load_config_dialog}
+  pack $t.btns.ok $t.btns.cancel $t.btns.save $t.btns.load -side left -padx 4
+  grid $t.btns -row 4 -column 0 -columnspan 2 -pady 8
+}
+
+proc save_config_dialog {} {
+  set path [tk_getSaveFile -parent .config -title "Save settings" \
+    -initialfile "settings.cfg"]
+  if {$path eq ""} return
+  set range_hours [.config.e_range get]
+  set fs [.config.c_font get]
+  try {
+    set f [open $path w]
+  } on error {msg} {
+    tk_messageBox -parent .config -icon error -message "Cannot write: $msg"
+    return
+  }
+  if {[string is double -strict $range_hours] && $range_hours > 0} {
+    puts $f "max_time=[expr {int($range_hours * 3600)}]"
+  }
+  if {[string is integer -strict $fs] && $fs >= 8 && $fs <= 20} {
+    puts $f "font_size=$fs"
+  }
+  set iv [.config.e_interval get]
+  if {[string is double -strict $iv] && $iv > 0} {
+    puts $f "update_interval=$iv"
+  }
+  puts $f "show_1m=$::cfg_show_1m"
+  puts $f "show_5m=$::cfg_show_5m"
+  puts $f "show_15m=$::cfg_show_15m"
+  close $f
+}
+
+proc load_config_dialog {} {
+  set path [tk_getOpenFile -parent .config -title "Load settings"]
+  if {$path eq ""} return
+  try {
+    set f [open $path r]
+  } on error {msg} {
+    tk_messageBox -parent .config -icon error -message "Cannot read: $msg"
+    return
+  }
+  array set vals {}
+  while {[gets $f line] >= 0} {
+    set line [string trim $line]
+    if {$line eq "" || [string index $line 0] eq "#"} continue
+    set eq [string first "=" $line]
+    if {$eq < 0} continue
+    set k [string trim [string range $line 0 [expr {$eq - 1}]]]
+    set v [string trim [string range $line [expr {$eq + 1}] end]]
+    set vals($k) $v
+  }
+  close $f
+  if {[info exists vals(max_time)] && [string is double -strict $vals(max_time)]} {
+    .config.e_range delete 0 end
+    .config.e_range insert 0 [expr {$vals(max_time) / 3600.0}]
+  }
+  if {[info exists vals(font_size)] && [string is integer -strict $vals(font_size)] \
+      && $vals(font_size) >= 8 && $vals(font_size) <= 20} {
+    .config.c_font set $vals(font_size)
+  }
+  if {[info exists vals(update_interval)] && [string is double -strict $vals(update_interval)] \
+      && $vals(update_interval) > 0} {
+    .config.e_interval delete 0 end
+    .config.e_interval insert 0 $vals(update_interval)
+  }
+  foreach {k var} {show_1m ::cfg_show_1m show_5m ::cfg_show_5m show_15m ::cfg_show_15m} {
+    if {[info exists vals($k)] && [string is boolean -strict $vals($k)]} {
+      set $var [expr {$vals($k) ? 1 : 0}]
+    }
+  }
 }
 
 bind .canvas <Button-3> {show_config}
