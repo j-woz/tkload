@@ -18,8 +18,9 @@ set ::show_15m 1
 # Exponent applied to the log time scale; >1 pushes recent times farther right.
 # TODO: expose as a configuration parameter.
 set ::time_scale_exp 2.0
-set ::font_size 16
+set ::font_size 18
 set ::font_family "Helvetica"
+set ::default_font_size 18
 
 # Assign argv to given names
 # A: Associative-array: map option to value
@@ -213,10 +214,11 @@ proc draw_graph {load1 load5 load15} {
   set c .canvas
   set w [winfo width $c]
   set h [winfo height $c]
-  set pad 30
-  set left_pad 60
-  set bottom_pad 60
-  set menu_h 40
+  set font_scale [expr {$::font_size / double($::default_font_size)}]
+  set pad [expr {int(30 * $font_scale)}]
+  set left_pad [expr {int(60 * $font_scale)}]
+  set bottom_pad [expr {int(60 * $font_scale)}]
+  set menu_h [expr {int(40 * $font_scale)}]
   set top_pad [expr {$pad + $menu_h}]
 
   # Draw background
@@ -369,7 +371,7 @@ proc draw_graph {load1 load5 load15} {
 
   # Draw legend with clickable rectangles in menu area
   set legend_font [list $::font_family $::font_size]
-  set legend_pad 6
+  set legend_pad [expr {int(6 * $font_scale)}]
   set legend_y [expr {$menu_h/2}]
 
   # Create text first to measure, then size rectangles around them
@@ -385,7 +387,7 @@ proc draw_graph {load1 load5 load15} {
   set w5 [expr {[lindex $bb5 2] - [lindex $bb5 0] + 2*$legend_pad}]
   set w15 [expr {[lindex $bb15 2] - [lindex $bb15 0] + 2*$legend_pad}]
   set rect_h [expr {[lindex $bb1 3] - [lindex $bb1 1] + 2*$legend_pad}]
-  set gap 5
+  set gap [expr {int(5 * $font_scale)}]
 
   set total [expr {$w1 + $w5 + $w15 + 2*$gap}]
   set x15_left [expr {$w - 10 - $total}]
@@ -680,6 +682,7 @@ bind .canvas <Button-3> {show_config}
 
 # Force window to render, then load initial data
 update
+lappend ::marks $::start_time
 initial_update
 after $::update_interval update_graph
 
