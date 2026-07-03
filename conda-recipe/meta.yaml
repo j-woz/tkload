@@ -1,0 +1,37 @@
+package:
+  name: tkload
+  version: 1.0.0
+
+source:
+  path: ..
+
+build:
+  number: 0
+  noarch: generic
+
+requirements:
+  build:
+    - tcl
+    - tk
+  host:
+    - tcl
+    - tk
+  run:
+    - tcl
+    - tk
+
+about:
+  home: https://github.com/yourusername/tkload
+  license: MIT
+  license_family: MIT
+  summary: Tcl/Tk clone of xload system load monitor for Linux
+  description: |
+    tkload is a Tcl/Tk based system load monitor that displays
+    real-time load averages (1m, 5m, 15m) in a graphical interface
+    with configurable fonts, time ranges, and mark annotations.
+  doc_url: https://github.com/yourusername/tkload/blob/main/README.adoc
+  dev_url: https://github.com/yourusername/tkload
+
+extra:
+  recipe-maintainers:
+    - yourname
