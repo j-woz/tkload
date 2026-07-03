@@ -7,6 +7,8 @@ package require Tk
 set ::width 700
 set ::height 375
 set ::graph_data {}
+set ::marks {}
+set ::show_marks 1
 set ::max_time 3600
 set ::update_interval 1000
 set ::start_time [clock seconds]
@@ -194,6 +196,18 @@ proc update_graph {} {
   after $::update_interval update_graph
 }
 
+# Load and display initial data without waiting
+proc initial_update {} {
+  set loads [get_load]
+  set load1 [lindex $loads 0]
+  set load5 [lindex $loads 1]
+  set load15 [lindex $loads 2]
+  set now [clock seconds]
+  lappend ::graph_data [list $now $load1 $load5 $load15]
+  .canvas delete all
+  draw_graph $load1 $load5 $load15
+}
+
 # Draw the load graph
 proc draw_graph {load1 load5 load15} {
   set c .canvas
@@ -299,6 +313,36 @@ proc draw_graph {load1 load5 load15} {
       }
       set prev_x15 $x
       set prev_y15 $y15
+    }
+  }
+
+  # Draw marks if enabled
+  if {$::show_marks} {
+    foreach point $::graph_data {
+      set timestamp [lindex $point 0]
+      if {[lsearch -exact $::marks $timestamp] >= 0} {
+        set load1_val [lindex $point 1]
+        set load5_val [lindex $point 2]
+        set load15_val [lindex $point 3]
+        set time_ago [expr {$now - $timestamp}]
+        set x [time_to_x $time_ago $w $pad $left_pad]
+
+        if {$::show_1m} {
+          set y1 [expr {$h - $bottom_pad - ($load1_val * $scale)}]
+          $c create oval [expr {$x - 5}] [expr {$y1 - 3}] [expr {$x + 5}] [expr {$y1 + 3}] \
+            -fill red -outline red
+        }
+        if {$::show_5m} {
+          set y5 [expr {$h - $bottom_pad - ($load5_val * $scale)}]
+          $c create oval [expr {$x - 5}] [expr {$y5 - 3}] [expr {$x + 5}] [expr {$y5 + 3}] \
+            -fill green -outline green
+        }
+        if {$::show_15m} {
+          set y15 [expr {$h - $bottom_pad - ($load15_val * $scale)}]
+          $c create oval [expr {$x - 5}] [expr {$y15 - 3}] [expr {$x + 5}] [expr {$y15 + 3}] \
+            -fill blue -outline blue
+        }
+      }
     }
   }
 
@@ -452,7 +496,30 @@ bind . <Configure> {
   draw_graph [lindex [get_load] 0] [lindex [get_load] 1] [lindex [get_load] 2]
 }
 
+proc mark_time {} {
+  lappend ::marks [clock seconds]
+  update_graph
+}
+
+proc toggle_marks {} {
+  set ::show_marks [expr {!$::show_marks}]
+  set now [clock seconds]
+  set loads [get_load]
+  set cutoff [expr {$now - $::max_time}]
+  set new_data {}
+  foreach point $::graph_data {
+    if {[lindex $point 0] >= $cutoff} {
+      lappend new_data $point
+    }
+  }
+  set ::graph_data $new_data
+  .canvas delete all
+  draw_graph [lindex $loads 0] [lindex $loads 1] [lindex $loads 2]
+}
+
 bind . <Key-q> {exit}
+bind . <space> {mark_time}
+bind . <Key-m> {toggle_marks}
 
 proc show_config {} {
   set t .config
@@ -611,8 +678,10 @@ proc load_config_dialog {} {
 
 bind .canvas <Button-3> {show_config}
 
-# Start updating
-update_graph
+# Force window to render, then load initial data
+update
+initial_update
+after $::update_interval update_graph
 
 # Local Variables:
 # tcl-indent-level: 2
